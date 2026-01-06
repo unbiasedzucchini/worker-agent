@@ -1,0 +1,7 @@
+name = "worker-agent"
+main = "src/index.ts"
+compatibility_date = "2024-01-01"
+account_id = "9a35bb05e985a665e394d29cf821b811"
+
+[vars]
+# OPENROUTER_API_KEY and CLOUDFLARE_API_TOKEN should be set as secrets
