@@ -134,6 +134,23 @@ const TOOLS: Tool[] = [
         required: []
       }
     }
+  },
+  {
+    type: "function",
+    function: {
+      name: "get_worker",
+      description: "Get the source code of an existing Cloudflare Worker.",
+      parameters: {
+        type: "object",
+        properties: {
+          name: {
+            type: "string",
+            description: "The name of the worker to read"
+          }
+        },
+        required: ["name"]
+      }
+    }
   }
 ];
 
@@ -180,6 +197,23 @@ async function createWorker(env: Env, name: string, code: string): Promise<strin
 async function updateWorker(env: Env, name: string, code: string): Promise<string> {
   // Update is the same as create (PUT is idempotent)
   return createWorker(env, name, code);
+}
+
+async function getWorker(env: Env, name: string): Promise<string> {
+  const url = `https://api.cloudflare.com/client/v4/accounts/${env.CLOUDFLARE_ACCOUNT_ID}/workers/scripts/${name}/content`;
+  
+  const response = await fetch(url, {
+    headers: {
+      "Authorization": `Bearer ${env.CLOUDFLARE_API_TOKEN}`
+    }
+  });
+
+  if (!response.ok) {
+    throw new Error(`Failed to get worker: ${response.status} ${response.statusText}`);
+  }
+
+  const code = await response.text();
+  return `Source code for '${name}':\n\n${code}`;
 }
 
 async function invokeWorker(env: Env, name: string, method: string, path: string, body?: string, headers?: Record<string, string>): Promise<string> {
@@ -260,6 +294,8 @@ async function executeToolCall(env: Env, toolCall: ToolCall): Promise<string> {
         return await createWorker(env, args.name, args.code);
       case "update_worker":
         return await updateWorker(env, args.name, args.code);
+      case "get_worker":
+        return await getWorker(env, args.name);
       case "invoke_worker":
         return await invokeWorker(env, args.name, args.method, args.path, args.body, args.headers);
       case "delete_worker":
@@ -312,6 +348,7 @@ export default {
 };
 
 You can create workers to solve tasks, invoke them to test, update them if there are issues, and delete them when done.
+You can also read the source code of existing workers using get_worker.
 Be concise and efficient. After completing the task, provide a clear summary of what was accomplished.`;
 
   const messages: Message[] = [
@@ -365,7 +402,7 @@ export default {
     if (url.pathname === "/" && request.method === "GET") {
       return new Response(JSON.stringify({
         name: "Worker Agent",
-        description: "An AI agent that can create, update, and invoke Cloudflare Workers",
+        description: "An AI agent that can create, update, read, and invoke Cloudflare Workers",
         usage: {
           method: "POST",
           path: "/run",
