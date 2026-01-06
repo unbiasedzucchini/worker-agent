@@ -154,6 +154,83 @@ const TOOLS: Tool[] = [
   }
 ];
 
+const HTML_PAGE = `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Worker Agent</title>
+  <style>
+    * { box-sizing: border-box; }
+    body { font-family: system-ui, sans-serif; max-width: 800px; margin: 0 auto; padding: 20px; background: #f5f5f5; }
+    h1 { color: #333; }
+    textarea { width: 100%; height: 120px; padding: 10px; border: 1px solid #ccc; border-radius: 4px; font-size: 14px; resize: vertical; }
+    select, button { padding: 10px 16px; font-size: 14px; border-radius: 4px; }
+    select { border: 1px solid #ccc; background: white; }
+    button { background: #f38020; color: white; border: none; cursor: pointer; }
+    button:hover { background: #e06d10; }
+    button:disabled { background: #ccc; cursor: not-allowed; }
+    .controls { display: flex; gap: 10px; margin: 10px 0; align-items: center; }
+    #output { background: white; border: 1px solid #ccc; border-radius: 4px; padding: 15px; margin-top: 20px; white-space: pre-wrap; font-family: monospace; font-size: 13px; min-height: 200px; }
+    .loading { color: #666; font-style: italic; }
+    .error { color: #c00; }
+  </style>
+</head>
+<body>
+  <h1>🤖 Worker Agent</h1>
+  <p>An AI agent that can create, update, read, and invoke Cloudflare Workers.</p>
+  
+  <textarea id="prompt" placeholder="Enter your prompt... e.g., 'Create a worker called my-api that returns the current time as JSON'"></textarea>
+  
+  <div class="controls">
+    <select id="model">
+      <option value="openai/gpt-4o">openai/gpt-4o</option>
+      <option value="anthropic/claude-sonnet-4">anthropic/claude-sonnet-4</option>
+      <option value="google/gemini-2.0-flash-001">google/gemini-2.0-flash-001</option>
+      <option value="meta-llama/llama-3.3-70b-instruct">meta-llama/llama-3.3-70b-instruct</option>
+    </select>
+    <button id="run" onclick="runAgent()">Run</button>
+  </div>
+  
+  <div id="output">Output will appear here...</div>
+
+  <script>
+    async function runAgent() {
+      const prompt = document.getElementById('prompt').value.trim();
+      const model = document.getElementById('model').value;
+      const output = document.getElementById('output');
+      const btn = document.getElementById('run');
+      
+      if (!prompt) { output.textContent = 'Please enter a prompt.'; return; }
+      
+      btn.disabled = true;
+      output.className = 'loading';
+      output.textContent = 'Running...';
+      
+      try {
+        const res = await fetch('/run', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ prompt, model })
+        });
+        const data = await res.json();
+        output.className = res.ok ? '' : 'error';
+        output.textContent = data.error || data.result || JSON.stringify(data, null, 2);
+      } catch (e) {
+        output.className = 'error';
+        output.textContent = 'Error: ' + e.message;
+      } finally {
+        btn.disabled = false;
+      }
+    }
+    
+    document.getElementById('prompt').addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' && e.metaKey) runAgent();
+    });
+  </script>
+</body>
+</html>`;
+
 async function createWorker(env: Env, name: string, code: string): Promise<string> {
   const url = `https://api.cloudflare.com/client/v4/accounts/${env.CLOUDFLARE_ACCOUNT_ID}/workers/scripts/${name}`;
   
@@ -195,7 +272,6 @@ async function createWorker(env: Env, name: string, code: string): Promise<strin
 }
 
 async function updateWorker(env: Env, name: string, code: string): Promise<string> {
-  // Update is the same as create (PUT is idempotent)
   return createWorker(env, name, code);
 }
 
@@ -217,7 +293,6 @@ async function getWorker(env: Env, name: string): Promise<string> {
 }
 
 async function invokeWorker(env: Env, name: string, method: string, path: string, body?: string, headers?: Record<string, string>): Promise<string> {
-  // First get the workers.dev subdomain
   const subdomainUrl = `https://api.cloudflare.com/client/v4/accounts/${env.CLOUDFLARE_ACCOUNT_ID}/workers/subdomain`;
   const subdomainResponse = await fetch(subdomainUrl, {
     headers: {
@@ -365,12 +440,10 @@ Be concise and efficient. After completing the task, provide a clear summary of 
     const { message } = await chat(env, messages, model);
     messages.push(message);
 
-    // If no tool calls, we're done
     if (!message.tool_calls || message.tool_calls.length === 0) {
       return { result: message.content || "", messages };
     }
 
-    // Execute all tool calls
     for (const toolCall of message.tool_calls) {
       const result = await executeToolCall(env, toolCall);
       messages.push({
@@ -386,7 +459,6 @@ Be concise and efficient. After completing the task, provide a clear summary of 
 
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
-    // CORS headers
     const corsHeaders = {
       "Access-Control-Allow-Origin": "*",
       "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
@@ -400,19 +472,8 @@ export default {
     const url = new URL(request.url);
 
     if (url.pathname === "/" && request.method === "GET") {
-      return new Response(JSON.stringify({
-        name: "Worker Agent",
-        description: "An AI agent that can create, update, read, and invoke Cloudflare Workers",
-        usage: {
-          method: "POST",
-          path: "/run",
-          body: {
-            prompt: "Your task or question",
-            model: "openai/gpt-4o (or any OpenRouter model)"
-          }
-        }
-      }, null, 2), {
-        headers: { ...corsHeaders, "Content-Type": "application/json" }
+      return new Response(HTML_PAGE, {
+        headers: { "Content-Type": "text/html" }
       });
     }
 
