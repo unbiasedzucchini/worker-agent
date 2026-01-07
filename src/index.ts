@@ -109,23 +109,6 @@ const TOOLS: Tool[] = [
   {
     type: "function",
     function: {
-      name: "delete_worker",
-      description: "Delete a Cloudflare Worker by name.",
-      parameters: {
-        type: "object",
-        properties: {
-          name: {
-            type: "string",
-            description: "The name of the worker to delete"
-          }
-        },
-        required: ["name"]
-      }
-    }
-  },
-  {
-    type: "function",
-    function: {
       name: "list_workers",
       description: "List all Cloudflare Workers in the account.",
       parameters: {
@@ -318,25 +301,6 @@ async function invokeWorker(env: Env, name: string, method: string, path: string
   return `Status: ${response.status}\nHeaders: ${JSON.stringify(Object.fromEntries(response.headers))}\nBody: ${responseText}`;
 }
 
-async function deleteWorker(env: Env, name: string): Promise<string> {
-  const url = `https://api.cloudflare.com/client/v4/accounts/${env.CLOUDFLARE_ACCOUNT_ID}/workers/scripts/${name}`;
-  
-  const response = await fetch(url, {
-    method: "DELETE",
-    headers: {
-      "Authorization": `Bearer ${env.CLOUDFLARE_API_TOKEN}`
-    }
-  });
-
-  const result = await response.json() as { success: boolean; errors?: Array<{ message: string }> };
-  
-  if (!result.success) {
-    throw new Error(`Failed to delete worker: ${JSON.stringify(result.errors)}`);
-  }
-
-  return `Worker '${name}' deleted successfully.`;
-}
-
 async function listWorkers(env: Env): Promise<string> {
   const url = `https://api.cloudflare.com/client/v4/accounts/${env.CLOUDFLARE_ACCOUNT_ID}/workers/scripts`;
   
@@ -373,8 +337,6 @@ async function executeToolCall(env: Env, toolCall: ToolCall): Promise<string> {
         return await getWorker(env, args.name);
       case "invoke_worker":
         return await invokeWorker(env, args.name, args.method, args.path, args.body, args.headers);
-      case "delete_worker":
-        return await deleteWorker(env, args.name);
       case "list_workers":
         return await listWorkers(env);
       default:
@@ -422,7 +384,7 @@ export default {
   }
 };
 
-You can create workers to solve tasks, invoke them to test, update them if there are issues, and delete them when done.
+You can create workers to solve tasks, invoke them to test, and update them if there are issues.
 You can also read the source code of existing workers using get_worker.
 Be concise and efficient. After completing the task, provide a clear summary of what was accomplished.`;
 
